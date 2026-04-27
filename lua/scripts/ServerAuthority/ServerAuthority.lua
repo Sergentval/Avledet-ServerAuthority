@@ -119,8 +119,24 @@ end
 -- Path B: on every peer disconnect, run a one-shot recovery sweep.
 -- This is the primary correctness path — guarantees server owns
 -- everything left behind by the departing player.
+--
+-- Also drops all stub-AI aggro state. When a player disconnects their
+-- ZDO is destroyed, and any mob that was chasing them holds a stale
+-- ZDO reference that can read as "still pointing at last known
+-- position" — i.e. the mob keeps chasing a ghost forever. Wiping
+-- aggro on Quit forces a clean re-scan on next tick.
 Avledet:subscribe('Quit', function(peer)
+    stub_ai.drop_all_aggro("Quit(" .. tostring(peer.socket.host) .. ")")
     reclaim_non_player_zdos(string.format("Quit(%s)", peer.socket.host))
+end)
+
+-- Disconnect fires on connection-level drops (timeout, network loss, force
+-- quit) — separate from the cleaner Quit path. Same aggro-clear is needed.
+-- The reclaim sweep is NOT re-run here because Quit usually fires alongside
+-- and would double-claim; if Disconnect is the only event (timeout), the
+-- next PeriodicUpdate will catch up within 3 minutes.
+Avledet:subscribe('Disconnect', function(peer)
+    stub_ai.drop_all_aggro("Disconnect(" .. tostring(peer.socket.host or "?") .. ")")
 end)
 
 -- Path C: backup periodic sweep. PeriodicUpdate fires every 3 minutes

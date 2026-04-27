@@ -167,6 +167,27 @@ function M.species_summary()
     return out
 end
 
+-- Drop chase aggro on every managed mob. Called from ServerAuthority.lua's
+-- Quit handler — when ANY peer disconnects, every mob's target_player_zdo
+-- could be stale (sol2 may keep the ZDO ref alive even after the underlying
+-- ZDO is destroyed by Avledet's peer-cleanup). Dropping all aggro is safe:
+-- mobs that were chasing legitimately drop to idle and re-aggro on the next
+-- tick when scan() finds another player. Mobs chasing a ghost get unstuck.
+function M.drop_all_aggro(reason)
+    local dropped = 0
+    for _, state in pairs(managed) do
+        if state.state == "chasing" then
+            state.state = "idle"
+            state.target_player_zdo = nil
+            state.state_until = now_seconds() + random_in_range(DEFAULTS.idle_duration_min, DEFAULTS.idle_duration_max)
+            dropped = dropped + 1
+        end
+    end
+    if dropped > 0 then
+        print(string.format("[StubAI] dropped %d aggro states (%s)", dropped, tostring(reason or "unspecified")))
+    end
+end
+
 ----------------------------------------------------------------------
 -- Tick
 ----------------------------------------------------------------------
