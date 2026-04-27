@@ -44,4 +44,29 @@ function M.advance_toward(from, to, step_distance)
     return Vec3f.new(from.x + dx * k, from.y, from.z + dz * k)
 end
 
+-- Find the nearest ZDO from `candidates` to `origin`, within max_distance (planar).
+-- Returns (zdo, distance) for the nearest in-range candidate, or (nil, nil) if none.
+-- Distance is XZ-planar (ignores y), matching the rest of this module's convention.
+--
+-- candidates: table of ZDO objects with .pos returning Vec3f.
+-- origin: Vec3f (typically a mob's current position).
+-- max_distance: float (typically the mob's aggro_radius, or aggro_radius * 1.5 for
+--               the drop-aggro check).
+function M.find_nearest(origin, candidates, max_distance)
+    if origin == nil or candidates == nil or max_distance == nil then return nil, nil end
+    if max_distance <= 0 or #candidates == 0 then return nil, nil end
+    local best_zdo, best_dist = nil, nil
+    for _, zdo in ipairs(candidates) do
+        local pos = zdo and zdo.pos
+        if pos ~= nil then
+            local d = M.planar_distance(origin, pos)
+            if d ~= nil and d <= max_distance and (best_dist == nil or d < best_dist) then
+                best_zdo, best_dist = zdo, d
+            end
+        end
+    end
+    if best_zdo == nil then return nil, nil end
+    return best_zdo, best_dist
+end
+
 return M
