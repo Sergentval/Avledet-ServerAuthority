@@ -29,13 +29,20 @@ end
 
 -- Walk every ZDO the server knows about. Claim non-Player non-server-owned
 -- ones for the server.
+--
+-- Avledet's ZDOManager:get_zdos() requires at least one filter argument; there's
+-- no no-arg "all ZDOs" overload. We use the Filter callback variant, which
+-- sol2 binds from a Lua function. Returning true keeps the ZDO; we then
+-- decide what to do with it in the loop.
 local function reclaim_non_player_zdos(reason)
     local claimed = 0
     local skipped_player = 0
     local skipped_already_mine = 0
     local total = 0
 
-    for _, zdo in ipairs(ZDOManager:get_zdos()) do
+    local all_zdos = ZDOManager:get_zdos(function(zdo) return true end)
+
+    for _, zdo in ipairs(all_zdos) do
         total = total + 1
 
         if zdo.mine then

@@ -6,7 +6,11 @@ This is a Lua module suite for [Avledet](https://github.com/crazicrafter1/Avlede
 
 ## Status
 
-Phase 0 — Foundation. Not yet usable. See [ROADMAP.md](docs/ROADMAP.md).
+**Phase 0 — Foundation: Lua port validated (2026-04-27).** First end-to-end smoke test of `ServerAuthority.lua` on Avledet succeeded — server claimed 15,117 ZDOs after a real Valheim client disconnected, mirroring the behaviour of the C# BepInEx mod with ~80 lines of Lua instead of ~600 lines of C# + 12 Harmony patches.
+
+Still pending in Phase 0: 24h sustained-run validation, multi-client test, Avledet upstream PRs, systemd deployment.
+
+See [ROADMAP.md](docs/ROADMAP.md).
 
 ## Why not just use BepInEx mods?
 
