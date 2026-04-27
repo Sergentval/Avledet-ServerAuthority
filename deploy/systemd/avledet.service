@@ -1,0 +1,45 @@
+[Unit]
+Description=Avledet - Valheim dedicated server (C++ reimplementation, with ServerAuthority Lua modules)
+Documentation=https://github.com/crazicrafter1/Avledet
+Documentation=https://github.com/Sergentval/Avledet-ServerAuthority
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/avledet-spike/Avledet/build/bin
+ExecStart=/home/ubuntu/avledet-spike/Avledet/build/bin/avledet_server
+
+# TRACY_NO_INVARIANT_CHECK silences Tracy's CPU TSC complaint on virt CPUs.
+# (TRACY_ON_DEMAND is compiled in via library/CMakeLists.txt; no env needed.)
+Environment=TRACY_NO_INVARIANT_CHECK=1
+
+# Steam SDK looks at $HOME for ~/.steam/sdk64/steamclient.so
+Environment=HOME=/home/ubuntu
+
+# Auto-restart on crash, but bail if it crashes too fast (see StartLimit*).
+Restart=on-failure
+RestartSec=10
+
+# Journald handles logging + rotation.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=avledet
+
+# Fail fast on startup hang.
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+# Light hardening (Avledet needs ~/.local/share/Steam writable).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
