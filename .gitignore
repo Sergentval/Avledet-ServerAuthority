@@ -1,0 +1,19 @@
+# Local Avledet build artifacts (not part of this repo)
+build/
+dist/
+*.tar.gz
+*.zip
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+.env.local
