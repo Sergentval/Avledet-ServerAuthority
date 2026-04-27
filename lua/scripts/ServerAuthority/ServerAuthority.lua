@@ -55,15 +55,23 @@ local function reclaim_non_player_zdos(reason)
     local skipped_already_mine = 0
     local total = 0
 
+    -- DIAGNOSTIC (Phase 1.5): collect unique prefab names with counts so we
+    -- can see Avledet's actual naming convention. Will help fix the
+    -- "registry says Boar but actual prefab is Boar(Clone) or similar" gap.
+    local prefab_counts = {}
+
     local all_zdos = ZDOManager:get_zdos(function(zdo) return true end)
 
     for _, zdo in ipairs(all_zdos) do
         total = total + 1
 
+        local name = zdo.prefab and zdo.prefab.name
+        if name and name ~= "" then
+            prefab_counts[name] = (prefab_counts[name] or 0) + 1
+        end
+
         if zdo.mine then
             skipped_already_mine = skipped_already_mine + 1
-            -- Even if we already owned it, the manager may not be tracking
-            -- it yet (e.g., we restarted while a mob was server-owned).
             register_with_ai_if_mob(zdo)
         elseif is_player(zdo) then
             skipped_player = skipped_player + 1
@@ -72,6 +80,34 @@ local function reclaim_non_player_zdos(reason)
             claimed = claimed + 1
             register_with_ai_if_mob(zdo)
         end
+    end
+
+    -- Sort prefab counts and log the top 30. One-shot diagnostic.
+    local sorted = {}
+    for n, c in pairs(prefab_counts) do sorted[#sorted + 1] = { name = n, count = c } end
+    table.sort(sorted, function(a, b) return a.count > b.count end)
+    local out = {}
+    for i = 1, math.min(30, #sorted) do
+        out[#out + 1] = string.format("%s=%d", sorted[i].name, sorted[i].count)
+    end
+    print("[ServerAuthority/diag] top 30 prefabs in last sweep: " .. table.concat(out, " "))
+
+    -- Also flag any name that looks like a known mob species but doesn't
+    -- match the registry — these are the ones Phase 1.5 needs to handle.
+    local mob_keywords = { "oar", "eer", "reyling", "reydwarf", "eck",
+                           "oblin", "roll", "kele", "raugr", "urtling",
+                           "olf", "ox", "ish", "rake", "erpent" }
+    local suspects = {}
+    for _, e in ipairs(sorted) do
+        for _, kw in ipairs(mob_keywords) do
+            if e.name:lower():find(kw) then
+                suspects[#suspects + 1] = string.format("%s=%d", e.name, e.count)
+                break
+            end
+        end
+    end
+    if #suspects > 0 then
+        print("[ServerAuthority/diag] mob-shaped names: " .. table.concat(suspects, " "))
     end
 
     print(string.format(

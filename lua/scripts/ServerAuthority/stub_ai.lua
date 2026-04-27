@@ -77,7 +77,12 @@ function M.manage(zdo, prefab_name)
     local entry = registry.lookup(prefab_name)
     if not entry then return false end
 
-    local id_key = tostring(zdo.id)
+    -- Composite key from the integer fields of ZDOID. Using `tostring(zdo.id)`
+-- gave non-unique keys (sol2 userdata wrapper collision), causing every
+-- mob to overwrite the same `managed` slot — only one mob ever ended
+-- up registered. See the prefab-counts diagnostic from 2026-04-27.
+local zid = zdo.id
+local id_key = tostring(zid.user_id) .. ":" .. tostring(zid.id)
     if managed[id_key] then
         -- Already managed — refresh home in case mob was repositioned by the game.
         managed[id_key].home_pos = zdo.pos
@@ -105,7 +110,8 @@ end
 -- when the ZDO is destroyed). Safe to call on unknown IDs.
 function M.release(zdo_id)
     if not zdo_id then return end
-    local id_key = tostring(zdo_id)
+    -- Same composite-key trick as M.manage. zdo_id is a ZDOID userdata.
+    local id_key = tostring(zdo_id.user_id) .. ":" .. tostring(zdo_id.id)
     if managed[id_key] then
         managed[id_key] = nil
         managed_count = managed_count - 1
