@@ -4,6 +4,26 @@ Phase 0 → 6, end goal: server-authoritative Valheim that feels like an MMO.
 
 Each phase ships something usable on its own. The project can stop at any phase boundary and the shipped phases still deliver value.
 
+## Scope ground truth (read first)
+
+Path B's reach is **bounded by what Avledet can do without modding the Valheim client.** Concretely:
+
+| | Server-authoritative possible? | Why |
+|---|---|---|
+| Mobs (AI, position, combat behaviour) | ✅ yes | Server can own ZDO, simulate, broadcast |
+| Structures (placement, persistence, smashable) | ✅ yes | Just data the server stores |
+| World events / spawn waves | ✅ yes | Avledet already runs `RandomEventManager` server-side |
+| Player movement | ❌ **no** | Vanilla Valheim has zero client-prediction reconciliation; without modding the client, server-asserted positions cause rubber-banding |
+| PvP combat (player vs player damage) | ❌ **no** | Same root cause — clients assert hits today |
+| PvE combat (player → mob) | ⚠️ hybrid | Mob owns its state server-side, but player still asserts the swing locally |
+| Anti-cheat / rollback netcode | ❌ **no** | Would require a custom Valheim client |
+
+**Implication:** "WoW-style anti-cheat" is out of scope for this project unless and until we also fork the client. What's in scope: a high-scale server where mobs don't freeze, structures don't lag, the world keeps running with no players, and AI is genuinely server-driven.
+
+If you want true PvP anti-cheat at some point, the path is "Avledet-ServerAuthority + custom Valheim client mod" — both pieces. That's a separate decision we can revisit later.
+
+See [`2026-04-27-path-b-unknowns.md`](./2026-04-27-path-b-unknowns.md) for the full reasoning behind this scope cut.
+
 ## Phase 0 — Foundation
 
 Make the platform real, prove the architecture, set up sustainable workflow.
@@ -56,18 +76,21 @@ The hardest piece. Mobs need to walk around obstacles instead of straight throug
 
 **Done when:** mobs navigate forests, around player buildings, and across reasonable terrain without getting stuck.
 
-## Phase 4 — Combat resolution
+## Phase 4 — Combat resolution (mob-side)
 
-Server-side hit detection + damage. The big one.
+Server-side hit detection + damage **for mobs.** Player-side hit assertion remains client-trusted (see scope ground truth above) — fixing that requires forking the Valheim client, which is a separate project.
 
-- [ ] Hit detection: animation-timing approximation from prefab metadata + raycast at swing peak
+- [ ] Mob-to-player hit detection: animation-timing approximation from prefab metadata + raycast at swing peak
 - [ ] Damage calculation matching vanilla Valheim's formulas (armour, stagger, weakness/resistance)
 - [ ] Mob-to-mob friendly fire toggle
-- [ ] Death + drop spawn
-- [ ] Player-vs-mob, mob-vs-mob, mob-vs-structure (Trolls smashing walls)
-- [ ] Smoke test: full combat cycle with no client validating hits
+- [ ] Mob death + drop spawn (server-authoritative loot)
+- [ ] Mob-vs-structure (Trolls smashing walls) — server-authoritative
+- [ ] Player → mob: validated against the server's known mob state, but the swing event still originates client-side
+- [ ] Smoke test: mob attacks player, damage applied without client agreement; player attacks mob, damage applied with reasonable sanity-check window
 
-**Done when:** combat completes without any client-side authority.
+**Done when:** mobs deal damage entirely server-side; player → mob has the same client-trust shape as vanilla but with all mob state authoritative.
+
+**What this DOESN'T deliver:** PvP anti-cheat, rubber-band-free player position, rollback netcode. Those need a client fork.
 
 ## Phase 5 — Polish
 
