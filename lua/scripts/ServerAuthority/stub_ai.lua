@@ -39,7 +39,7 @@ local DEFAULTS = {
     idle_duration_max           = 5.0,
     arrival_threshold           = 0.3,
     -- Phase 2 additions
-    chase_step_interval_seconds = 0.25, -- chase ticks 4× faster for smooth pursuit
+    chase_step_interval_seconds = 1.0/60.0, -- 60 Hz chase tick for smooth pursuit (~vanilla feel)
     aggro_drop_multiplier       = 1.5,  -- exit_threshold = aggro_radius * this
 }
 
@@ -122,6 +122,7 @@ local id_key = tostring(zid.user_id) .. ":" .. tostring(zid.id)
 
     managed[id_key] = {
         zdo            = zdo,
+        zdo_id         = zdo.id,  -- captured for release(); sol2 ZDOID userdata is fine to keep
         species        = prefab_name,
         speed          = entry.speed,
         wander_radius  = entry.wander_radius,
@@ -137,6 +138,14 @@ local id_key = tostring(zid.user_id) .. ":" .. tostring(zid.id)
         home_pos       = zdo.pos,
     }
     managed_count = managed_count + 1
+
+    -- PHASE-2.5 INTEGRATION: tell the C++ side this ZDO is sticky-owned.
+    -- This blocks spatial-proximity ownership flips for THIS specific ZDO,
+    -- without affecting other server-owned ZDOs (items, structures, etc.).
+    -- Requires the Avledet ServerAuthority C++ patch (mark_sticky binding).
+    if ZDOManager.mark_sticky then
+        ZDOManager:mark_sticky(zdo)
+    end
     return true
 end
 
@@ -149,6 +158,11 @@ function M.release(zdo_id)
     if managed[id_key] then
         managed[id_key] = nil
         managed_count = managed_count - 1
+        -- PHASE-2.5 INTEGRATION: drop sticky flag so the ZDO can flow
+        -- normally again (peer can claim, etc).
+        if ZDOManager.unmark_sticky_id then
+            ZDOManager:unmark_sticky_id(zdo_id)
+        end
     end
 end
 
