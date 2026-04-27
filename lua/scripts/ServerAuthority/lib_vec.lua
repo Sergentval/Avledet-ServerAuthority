@@ -1,11 +1,23 @@
 --[[
-    lib_vec — Vec3f helpers for Avledet-ServerAuthority Phase 1 stub AI.
+    lib_vec — Vec3f helpers for Avledet-ServerAuthority.
     https://github.com/Sergentval/Avledet-ServerAuthority
 
-    Phase 1 mob movement is horizontal-only — y is preserved from the input
-    position. Ground-following via heightmap sampling is Phase 1.5. See
-    PHASE-1-SPEC.md "Y-axis (vertical) handling — known gap".
+    Phase 3.0+: ground-following via HeightmapManager:get_height_at when
+    available (requires the Avledet C++ Phase-3.0 binding). Falls back to
+    flat-plane motion if HeightmapManager isn't bound (e.g., older Avledet
+    builds), so the module remains backwards-compatible.
 --]]
+
+-- Detect Phase-3.0 binding once at load time. If HeightmapManager:get_height_at
+-- exists, advance_toward will clamp result.y to ground height; otherwise it
+-- preserves from.y as before. This keeps lib_vec usable on Avledet builds
+-- without our C++ patch.
+local function has_heightmap_binding()
+    return HeightmapManager
+        and type(HeightmapManager.get_height_at) == "function"
+        or  pcall(function() return HeightmapManager:get_height_at(Vec3f.new(0,0,0)) end)
+end
+local HM_AVAILABLE = has_heightmap_binding()
 
 local M = {}
 
@@ -31,17 +43,37 @@ function M.planar_distance(a, b)
     return math.sqrt(dx * dx + dz * dz)
 end
 
--- Step from `from` toward `to` by at most `step_distance`. Result keeps from.y.
+-- Step from `from` toward `to` by at most `step_distance`.
+-- If HeightmapManager:get_height_at is bound (Avledet Phase-3.0 patch),
+-- the returned position's y is clamped to ground height — so mobs follow
+-- terrain instead of flying or clipping. Without the binding, falls back
+-- to from.y (flat-plane motion).
 -- If already within step_distance (planar), snap to the target's XZ.
 function M.advance_toward(from, to, step_distance)
     if from == nil or to == nil or step_distance == nil then return nil end
+
     local dx, dz = to.x - from.x, to.z - from.z
     local dist = math.sqrt(dx * dx + dz * dz)
+
+    local result_x, result_z, result_y
     if dist <= step_distance or dist == 0 then
-        return Vec3f.new(to.x, from.y, to.z)
+        result_x, result_z = to.x, to.z
+    else
+        local k = step_distance / dist
+        result_x, result_z = from.x + dx * k, from.z + dz * k
     end
-    local k = step_distance / dist
-    return Vec3f.new(from.x + dx * k, from.y, from.z + dz * k)
+
+    if HM_AVAILABLE then
+        -- Probe the terrain at result.xz; HeightmapManager returns from.y if
+        -- the heightmap zone isn't loaded (graceful fallback baked into
+        -- the C++ side per PHASE-3-SPEC.md).
+        local probe = Vec3f.new(result_x, from.y, result_z)
+        result_y = HeightmapManager:get_height_at(probe)
+    else
+        result_y = from.y
+    end
+
+    return Vec3f.new(result_x, result_y, result_z)
 end
 
 -- Find the nearest ZDO from `candidates` to `origin`, within max_distance (planar).
